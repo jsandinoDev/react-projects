@@ -1,57 +1,26 @@
 import { useState } from 'react'
 import './App.css'
-
-const TURNS = {
-    X: 'X',
-    O: 'O'
-}
-
-
-const Square = ({ children, isSelected, updateBoard, index }) => {
-
-    const className = `square ${isSelected ? 'is-selected' : ''}`
-
-    const handleClick = () => {
-        updateBoard(index)
-    }
-
-    return (
-        <div className={className} onClick={handleClick}>
-            {children}
-        </div>
-    )
-}
-
-const WINNER_COMBOS = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6]
-]
-
+import confetti from "canvas-confetti";
+import { Square } from './componets/Square';
+import { TURNS } from './constants'
+import { checkEndGame, checkWinner } from './logic/board'
+import { WinnerModal } from './componets/WinnerModal';
+import { Board } from './componets/Board';
+import { resetGameStorage, saveGameToStorage } from './logic/storage';
 function App() {
     // States
-    const [board, setBoard] = useState(Array(9).fill(null))
-    const [turn, setTurn] = useState(TURNS.X)
+    const [board, setBoard] = useState( () => {
+        const boardFromLocalStorage = window.localStorage.getItem('board')
+        return boardFromLocalStorage ? JSON.parse(boardFromLocalStorage) : Array(9).fill(null)
+        
+    })
+        
+    const [turn, setTurn] = useState( () => {
+        const turnFromLocalStorage = window.localStorage.getItem('turn')
+        return turnFromLocalStorage ?? TURNS.X
+    })
     const [winner, setWinner] = useState(null)
 
-    const checkWinner = (checkboard) => {
-        for(const combo of WINNER_COMBOS){
-            const [a,b,c] = combo
-            if(
-                checkboard[a] &&
-                checkboard[a] === checkboard[b] &&
-                checkboard[a] === checkboard[c]
-            ){
-                return checkboard[a]
-            }
-        }
-        return null
-    }
 
     const updateBoard = (index) => {
         // avoid overwrite of an element || had a winner
@@ -65,30 +34,41 @@ function App() {
         // update turn
         const newTurn = turn === TURNS.X ? TURNS.O : TURNS.X
         setTurn(newTurn)
+        saveGameToStorage({
+            board: newBoard,
+            turn: newTurn
+        })
 
-        //checl winner
+        //check winner
         const newWinner = checkWinner(newBoard)
-        if(newWinner){
+        if (newWinner) {
+            confetti();
             setWinner(newWinner)
-        } 
-        // check if game is over
+        } else if (checkEndGame(newBoard)) {
+            setWinner(false) // draw
+        }
+
     }
+    
+
+    const resetGame = () => {
+        setBoard(Array(9).fill(null))
+        setTurn(TURNS.x)
+        setWinner(null)
+
+        resetGameStorage();
+    }
+
+    
 
     return (
         <main className='board'>
-            <h1>GAME jsandinoDev</h1>
+            <h1>Gato jsandinoDev</h1>
+            <button onClick={resetGame}>Reset Game</button>
+
             <section className='game'>
                 {
-                    board.map((_, index) => {
-                        return (
-                            <Square
-                                key={index}
-                                index={index}
-                                updateBoard={updateBoard}>
-                                {board[index]}
-                            </Square>
-                        )
-                    })
+                    <Board board={board} updateBoard={updateBoard} />
                 }
             </section>
 
@@ -97,27 +77,7 @@ function App() {
                 <Square isSelected={turn === TURNS.O}>{TURNS.O}</Square>
             </section>
 
-            {
-                winner !== null && (
-                    <section className='winner'>
-                        <div className='text'>
-                            <h2>
-                                {winner === false 
-                                ? 'Draw' 
-                                :  'The winner is:'}
-                            </h2>
-
-                            <header className='win'>
-                                    {winner && <Square>{winner}</Square>}
-                            </header>
-
-                            <footer>
-                                <button>Play again?</button>
-                            </footer>
-                        </div>
-                    </section>
-                )
-            }
+            <WinnerModal winner={winner} resetGame={resetGame} />
         </main>
     )
 }
